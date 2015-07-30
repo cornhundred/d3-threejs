@@ -1,0 +1,106 @@
+d3.js, Three.js, and CSS 3D Transforms 
+note from http://www.r2d3.us/visual-intro-to-machine-learning-part-1/
+
+	D3 is used to generate the HTML elements and SVG chars and also to store coordinate information for transitions inside ]data properties. The objects created using D3 are then passed into a three.js scene and animated using CSS 3D transforms (no WebGL, this is pure DOM). 
+
+	CSS 3D transforms are widely supported in browsers and that support continues to grow. Transforms, like WebGL, capture the benerig of hardware acceleration. 
+
+	Three.js can allow you to set up a 3D space where those 2D charts live that the user can quickly navigate. This example shows that it's at least possible to use D3 in 2D and allow it to exist in a 3D world. The code is based on an example created by Mr.Doob in three.js that uses the elements of the peridioc table. For my example, I started with his code and re-factored it to use D3 wherever possible. In addition to siply generating SVG charts, D3 is being used to generate all the HTML content and buttons that are used in the graphic. 
+
+	[the data binding from D3 is useful for this]
+
+	Looking at the code 
+		The main block of code for the example is in the viz.js file. There is a total of about 250 lines of code to genrate the visualization, which I was pretty happy about. There are just a few additional lines in the HTML file that load the data and kick things off. The rest of the magis is happening with CSS. Many of hte elemts are being placed using 'absolute' positioning, so definitely take a look at the CSS file if you want to understnad how everything works. 
+
+		The image to the left describes the basic process. If you look at the lines of JS in the index.html files, you see the data loads from a json file and is first sent to hte VIZ.drawElements function. In that function, D3 will generate the HTML and SVG for each one of the elements, then for each element, it will call a function for setting the data position for the element in each view (random, helox, sphere, grid), storing the information inside the data property of the element. I found this to be an elegant way to use D3 and it really helps to keep the data organized for events and debugging. 
+
+		Overview
+			Load Date From File 
+				-> to 'drawElemens' function
+			Use D3 to Create Elements (chart)
+				-> to 'setData' function 
+			Use D3 to Store Coordinates 
+				- the locations for each view (helox, ...) are storeed in the data property of the element 
+				-> to 'objectify' function
+			Create 3D Objects 
+				- Each element passed into three.js scene
+			Transform Render Animate 
+
+		You can see a screenshot of the data set on an element in the image in the left. What actually gets stored for hte coordinates of hte element in the view (helo, sphere, etc) is a THREE.Object3D object which has both position and rotation, which can be directly sent to three.js for rendering the scene and doing animations. 
+
+		With all the HTML and SVG generated and the data property set on the element, it is passed into another function ('objectigy') where the entire element is set as a THREE.CSSObject with its initial coordinates being the random ones (generated in the setData function) and then that object is passed into the three.js scene. Whent he page loads the scene will immediately begin a transition from the 'random' coordinates to the helix ones. 
+
+			// From drawElements function
+			elements.each(Objectify);
+
+			// Objectify function receives the data
+			// from the element 
+			function objectify(d) {
+				var object = new THREE.CSSDObject(this);
+				object.position = d.random.position;
+				scene.add(object);
+			}
+
+	Transforming, Rendering, and Animating
+		This example is realy geared towards people with D3 experience who have an interest in three.js and 3D graphics in teh brower. If you look over the code, over half of the ~250 lines are devoted to teh drawElements function which is straight D3 (admittedly, this is some mind bender D3 code since we are generating 100 charts in one function ... excellent workout if you want to hone your D3 selection skills). If you then take out the setData function, which is just adding data tot he data property on the elements and the other helper functions, there is not much left to talk about. The rest of the code handles transitions, rendering, and animation, but this is common to any threee.js example where you are setting up a scene and a camera. 
+
+		Tweening in Three.js - To make transitions from one layout or view (helox, sphere, etx) to another in three.js, the idea is similar to what is done in D3 in a 2D format. If you have been working with D3 the idea of transitioning through 'tweening' is probably familiar. Tweening is a way to create a smooth transition from one state to another without having to write all the complex code to handle each individual frame. In this example I am using the Tween.js library and you can see how it is used in the VIZ.transform function: 
+
+			Viz.transform = function (layout){
+				var duration - 1000;
+
+				TWEEEN.removeAll();
+
+				scene.children.forEach(function(object){
+					// A
+					var newPos = object.element.__data__[layout].position; 
+					var coords = new TWEEN.Tween(object.position)
+								.to({x: newPos.x, y: newPos.y, x: newPos.x}, duration)
+								.easing(TWEEN.easing.Sinusoida.InOut)
+								.start();
+
+					// B
+					var newRot = object.element.__data__[layout].rotation;
+					var rotate = new TWEEN.Tween(object.rotation)
+								.to({x: newRot.x, y: newRot.y, z: newRot.z}, duration)
+								.easing(TWEEN.Easing.Sinusoida.Inout)
+								.start();
+				});
+
+				var update = new Tween.Tween(this)
+							.to({}, duration)
+							.onUpdate(Viz.render)
+							.start();
+			}
+
+		With data already set on each element, we just need to cycle over each one and grab the new coordinats and start the transition. The function takes a layout as input. That's the new layout that you want to have the elements move towards (usually on a button click). You can see at points A and B in the code above that the coordinate information is extracted from the elements's data property. 
+
+		You can go to the Tween.js GitHub page for some great examples a little more explanation of how this works. 
+
+		Controls, Render, Animate - One last short JavaScript file called TrackballControls.js is loading the example that gives it the controls for zooming, panning, and rotating. This is not part of the core three.js library, but you can find it in the examples section on GitHub. You can see where this setup near the bottom of the viz.js file: 
+
+			VIZ.render = function(){
+				renderer.render(scene, camera)
+			}
+
+			VIZ.animate = function(){
+				requestAnimationFramt(Viz.animate);
+				TWEEN.update();
+				controls.update();
+			}
+
+			renderer = new THREE.CSS3DRenderer();
+			renderer.setSize(width,height);
+			renderer.domElement.style.position = absolute;
+
+			document.getElementById('container').appendChild(renderer.domElement);
+
+			controls = new THREE.TrackballControls(camera, renderer.domElement)
+			controls.rotateSpeed = 0.5;
+			controls.minDistance = 100;
+			controls.maxDistance = 600;
+			controls.addEventListener('change', VIZ.render);
+
+		With TrackballControls.js file in place, thee is a little more surrounding code for the VIZ.render function and the VIZ.animate function. There are also a few scattered lines for setting the camera and renderer properties. This is all pretty standard stuff in three.js. I think one of the best resources for understanding the basic process for rendering animating scenes in three.js is the website and book from Jos Dirksen. Although he doesn't cover the CSS 3D renderer I dound the book extremey ... 
+
+
